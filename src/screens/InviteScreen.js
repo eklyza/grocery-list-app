@@ -158,7 +158,7 @@ const InviteScreen = ({ navigation, route }) => {
   if (loadingData) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#29AB87" />
       </View>
     );
   }
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#29AB87',
     paddingTop: 50,
     paddingBottom: 16,
     paddingHorizontal: 16,
@@ -300,14 +300,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
   },
   sendButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#29AB87',
     paddingHorizontal: 20,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#A5D6A7',
+    backgroundColor: '#85D4BC',
   },
   sendButtonText: {
     color: '#fff',
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#29AB87',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   },
   youBadge: {
     fontSize: 12,
-    color: '#4CAF50',
+    color: '#29AB87',
     fontWeight: '600',
     backgroundColor: '#E8F5E9',
     paddingHorizontal: 8,

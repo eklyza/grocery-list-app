@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,14 +6,37 @@ import {
   Animated,
   StyleSheet,
   Alert,
+  Modal,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 
-const ItemRow = ({ item, onToggleCrossOff, onDelete }) => {
+const ItemRow = ({ item, onToggleCrossOff, onDelete, onRename }) => {
   const swipeableRef = useRef(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingName, setEditingName] = useState('');
 
   const handleToggle = () => {
     onToggleCrossOff(item.id, item.crossedOff);
+  };
+
+  const handleOpenEdit = () => {
+    setEditingName(item.name);
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async () => {
+    const trimmed = editingName.trim();
+    if (trimmed && trimmed !== item.name) {
+      const success = await onRename(item.id, trimmed);
+      if (success === false) {
+        const msg = `"${trimmed}" was not added since it already exists in the list.`;
+        Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Duplicate Item', msg);
+        return;
+      }
+    }
+    setEditModalVisible(false);
   };
 
   const handleDelete = () => {
@@ -55,32 +78,64 @@ const ItemRow = ({ item, onToggleCrossOff, onDelete }) => {
   };
 
   return (
-    <Swipeable
-      ref={swipeableRef}
-      renderRightActions={renderRightActions}
-      rightThreshold={40}
-    >
-      <TouchableOpacity
-        style={[styles.container, item.crossedOff && styles.crossedOff]}
-        onPress={handleToggle}
-        activeOpacity={0.7}
+    <>
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        rightThreshold={40}
       >
-        <View style={styles.checkbox}>
-          {item.crossedOff && <Text style={styles.checkmark}>✓</Text>}
-        </View>
-        <View style={styles.content}>
-          <Text
-            style={[
-              styles.name,
-              item.crossedOff && styles.crossedOffText,
-            ]}
-          >
-            {item.name}
-          </Text>
-          <Text style={styles.category}>{item.category}</Text>
-        </View>
-      </TouchableOpacity>
-    </Swipeable>
+        <TouchableOpacity
+          style={[styles.container, item.crossedOff && styles.crossedOff]}
+          onPress={handleToggle}
+          activeOpacity={0.7}
+        >
+          <View style={styles.checkbox}>
+            {item.crossedOff && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <View style={styles.content}>
+            <TouchableOpacity onPress={handleOpenEdit}>
+              <Text style={[styles.name, item.crossedOff && styles.crossedOffText]}>
+                {item.name}
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.category}>{item.category}</Text>
+          </View>
+        </TouchableOpacity>
+      </Swipeable>
+
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setEditModalVisible(false)}
+        >
+          <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
+            <Text style={styles.modalTitle}>Edit Item</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editingName}
+              onChangeText={setEditingName}
+              autoFocus
+              onSubmitEditing={handleSaveEdit}
+            />
+            <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveEdit}>
+              <Text style={styles.modalSaveText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setEditModalVisible(false)}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </>
   );
 };
 
@@ -94,20 +149,20 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   crossedOff: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#e8e8e8',
   },
   checkbox: {
     width: 24,
     height: 24,
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#29AB87',
     borderRadius: 12,
     marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkmark: {
-    color: '#4CAF50',
+    color: '#29AB87',
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -126,6 +181,54 @@ const styles = StyleSheet.create({
   category: {
     fontSize: 12,
     color: '#888',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    width: '85%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  modalSaveButton: {
+    backgroundColor: '#29AB87',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalSaveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalCancelButton: {
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#888',
+    fontSize: 16,
   },
   deleteAction: {
     backgroundColor: '#FF5252',

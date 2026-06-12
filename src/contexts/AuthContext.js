@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import {
   doc,
@@ -15,6 +16,7 @@ import {
   getDocs,
   updateDoc,
   arrayUnion,
+  deleteDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
@@ -50,13 +52,19 @@ export const AuthProvider = ({ children }) => {
       const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
 
       if (userDoc.exists()) {
-        const data = userDoc.data();
+        let data = userDoc.data();
+
+        // Migrate legacy listId (string) to listIds (array)
+        if (data.listId && !data.listIds) {
+          data = { ...data, listIds: [data.listId] };
+          await updateDoc(doc(db, 'users', firebaseUser.uid), {
+            listIds: [data.listId],
+          });
+        }
+
         setUserData(data);
 
-        // Check for pending invitations if user doesn't have a list yet
-        if (!data.listId) {
-          await checkPendingInvitations(firebaseUser.email);
-        }
+        await checkPendingInvitations(firebaseUser.email);
       } else {
         // New user - check for invitations first
         await checkPendingInvitations(firebaseUser.email);
@@ -100,7 +108,7 @@ export const AuthProvider = ({ children }) => {
     await setDoc(doc(db, 'users', firebaseUser.uid), {
       email: email.toLowerCase(),
       displayName: displayName || email.split('@')[0],
-      listId: null,
+      listIds: [],
       createdAt: serverTimestamp(),
     });
 
@@ -110,29 +118,29 @@ export const AuthProvider = ({ children }) => {
     return firebaseUser;
   };
 
+  const resetPassword = async (email) => {
+    await sendPasswordResetEmail(auth, email);
+  };
+
   const signOut = async () => {
     await firebaseSignOut(auth);
   };
 
-  const createNewList = async () => {
+  const createNewList = async (name) => {
     if (!user) return null;
 
     try {
-      // Create a new list
       const listRef = doc(collection(db, 'lists'));
       await setDoc(listRef, {
+        name,
         ownerId: user.uid,
-        members: [user.uid],
-        memberEmails: [user.email.toLowerCase()],
         createdAt: serverTimestamp(),
       });
 
-      // Update user with list ID
-      await updateDoc(doc(db, 'users', user.uid), {
-        listId: listRef.id,
-      });
-
-      setUserData((prev) => ({ ...prev, listId: listRef.id }));
+      setUserData((prev) => ({
+        ...prev,
+        listIds: [...(prev?.listIds || []), listRef.id],
+      }));
 
       return listRef.id;
     } catch (error) {
@@ -141,39 +149,102 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const renameList = async (listId, newName) => {
+    try {
+      await updateDoc(doc(db, 'lists', listId), { name: newName });
+    } catch (error) {
+      console.error('Error renaming list:', error);
+      throw error;
+    }
+  };
+
+  const deleteList = async (listId) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'lists', listId));
+    } catch (error) {
+      console.error('Error deleting list:', error);
+      throw error;
+    }
+  };
+
   const acceptInvitation = async () => {
     if (!user || !pendingInvitation) return;
 
     try {
-      const { listId, id: invitationId } = pendingInvitation;
+      const { listId, invitedBy: inviterUid, id: invitationId } = pendingInvitation;
 
       // Update invitation status
       await updateDoc(doc(db, 'invitations', invitationId), {
         status: 'accepted',
       });
 
-      // Add user to list
-      await updateDoc(doc(db, 'lists', listId), {
-        members: arrayUnion(user.uid),
-        memberEmails: arrayUnion(user.email.toLowerCase()),
-      });
+      // Get all lists the inviter is a member of
+      const inviterListsSnapshot = await getDocs(
+        query(collection(db, 'lists'), where('members', 'array-contains', inviterUid))
+      );
 
-      // Update or create user document with list ID
+      // Get the inviter's email from their user doc
+      const inviterUserDoc = await getDoc(doc(db, 'users', inviterUid));
+      const inviterEmail = inviterUserDoc.data()?.email || '';
+
+      // Add invitee to all of the inviter's lists
+      await Promise.all(
+        inviterListsSnapshot.docs.map((d) =>
+          updateDoc(d.ref, {
+            members: arrayUnion(user.uid),
+            memberEmails: arrayUnion(user.email.toLowerCase()),
+          })
+        )
+      );
+
+      // Get all lists the invitee already has
+      const myListsSnapshot = await getDocs(
+        query(collection(db, 'lists'), where('members', 'array-contains', user.uid))
+      );
+
+      // Add inviter to all of the invitee's existing lists
+      if (myListsSnapshot.docs.length > 0) {
+        await Promise.all(
+          myListsSnapshot.docs.map((d) =>
+            updateDoc(d.ref, {
+              members: arrayUnion(inviterUid),
+              memberEmails: arrayUnion(inviterEmail),
+            })
+          )
+        );
+      }
+
+      // Update or create invitee's user document
       const userRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userRef);
+      const inviterListIds = inviterListsSnapshot.docs.map((d) => d.id);
 
       if (userDoc.exists()) {
-        await updateDoc(userRef, { listId });
+        if (inviterListIds.length > 0) {
+          await updateDoc(userRef, { listIds: arrayUnion(...inviterListIds) });
+        }
       } else {
         await setDoc(userRef, {
           email: user.email.toLowerCase(),
           displayName: user.displayName || user.email.split('@')[0],
-          listId,
+          listIds: inviterListIds,
           createdAt: serverTimestamp(),
         });
       }
 
-      setUserData((prev) => ({ ...prev, listId }));
+      // Update inviter's user doc with the invitee's list IDs
+      const myListIds = myListsSnapshot.docs.map((d) => d.id);
+      if (myListIds.length > 0) {
+        await updateDoc(doc(db, 'users', inviterUid), {
+          listIds: arrayUnion(...myListIds),
+        });
+      }
+
+      setUserData((prev) => ({
+        ...prev,
+        listIds: [...new Set([...(prev?.listIds || []), ...inviterListIds])],
+      }));
       setPendingInvitation(null);
 
       return listId;
@@ -205,7 +276,10 @@ export const AuthProvider = ({ children }) => {
     signIn,
     signUp,
     signOut,
+    resetPassword,
     createNewList,
+    renameList,
+    deleteList,
     acceptInvitation,
     declineInvitation,
   };

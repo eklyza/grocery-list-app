@@ -8,6 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Platform,
+  TextInput,
+  Share,
 } from 'react-native';
 import {
   collection,
@@ -17,28 +20,29 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  addDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import ItemRow from '../components/ItemRow';
+import AutocompleteInput from '../components/AutocompleteInput';
+import CategoryPicker from '../components/CategoryPicker';
+import { isDuplicate, findDuplicate } from '../utils/duplicateCheck';
 import { CATEGORIES } from '../data/categories';
 
-const GroceryListScreen = ({ navigation }) => {
-  const {
-    user,
-    userData,
-    pendingInvitation,
-    signOut,
-    createNewList,
-    acceptInvitation,
-    declineInvitation,
-  } = useAuth();
+const GroceryListScreen = ({ navigation, route }) => {
+  const { listId, listName: initialListName } = route.params;
+  const { user, renameList, deleteList, signOut } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [processingList, setProcessingList] = useState(false);
-
-  const listId = userData?.listId;
+  const [searchText, setSearchText] = useState('');
+  const [searchCategory, setSearchCategory] = useState('');
+  const [addingFromSearch, setAddingFromSearch] = useState(false);
+  const [listName, setListName] = useState(initialListName || 'My List');
+  const [nameModalVisible, setNameModalVisible] = useState(false);
+  const [editingName, setEditingName] = useState('');
 
   useEffect(() => {
     if (!listId) {
@@ -134,115 +138,182 @@ const GroceryListScreen = ({ navigation }) => {
     }
   };
 
-  const handleCreateList = async () => {
-    setProcessingList(true);
+  const handleRenameItem = async (itemId, newName) => {
+    const otherItems = items.filter((i) => i.id !== itemId);
+    if (isDuplicate(newName, otherItems)) {
+      return false;
+    }
     try {
-      await createNewList();
+      await updateDoc(doc(db, 'lists', listId, 'items', itemId), {
+        name: newName,
+        nameLower: newName.toLowerCase(),
+      });
+      return true;
     } catch (error) {
-      Alert.alert('Error', 'Failed to create list');
-    } finally {
-      setProcessingList(false);
+      console.error('Error renaming item:', error);
+      Alert.alert('Error', 'Failed to rename item');
+      return false;
     }
   };
 
-  const handleAcceptInvitation = async () => {
-    setProcessingList(true);
+  const handleOpenNameModal = () => {
+    setEditingName(listName);
+    setNameModalVisible(true);
+  };
+
+  const handleSaveName = async () => {
+    const trimmed = editingName.trim();
+    if (!trimmed) return;
     try {
-      await acceptInvitation();
+      await renameList(listId, trimmed);
+      setListName(trimmed);
+      setNameModalVisible(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to accept invitation');
-    } finally {
-      setProcessingList(false);
+      Alert.alert('Error', 'Failed to rename list');
     }
   };
 
-  const handleDeclineInvitation = async () => {
-    setProcessingList(true);
-    try {
-      await declineInvitation();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to decline invitation');
-    } finally {
-      setProcessingList(false);
+  const handleDeleteList = () => {
+    const confirm = () => {
+      deleteList(listId)
+        .then(() => {
+          setNameModalVisible(false);
+          navigation.goBack();
+        })
+        .catch(() => Alert.alert('Error', 'Failed to delete list'));
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete "${listName}"? This cannot be undone.`)) {
+        confirm();
+      }
+    } else {
+      Alert.alert('Delete List', `Delete "${listName}"? This cannot be undone.`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: confirm },
+      ]);
     }
   };
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: () => signOut(),
-      },
-    ]);
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to sign out?')) {
+        signOut();
+      }
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: () => signOut(),
+        },
+      ]);
+    }
   };
 
-  // Show invitation prompt if user has pending invitation
-  if (pendingInvitation) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.title}>You've Been Invited!</Text>
-        <Text style={styles.subtitle}>
-          You have a pending invitation to join a shared grocery list.
-        </Text>
-        <View style={styles.buttonGroup}>
-          <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
-            onPress={handleAcceptInvitation}
-            disabled={processingList}
-          >
-            {processingList ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Accept Invitation</Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={handleDeclineInvitation}
-            disabled={processingList}
-          >
-            <Text style={styles.secondaryButtonText}>Decline</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  const handleShareList = async () => {
+    const activeItems = items.filter((item) => !item.crossedOff);
 
-  // Show create list prompt if user doesn't have a list
-  if (!listId) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.title}>Welcome!</Text>
-        <Text style={styles.subtitle}>
-          Create a new grocery list to get started, or wait for an invitation.
-        </Text>
-        <TouchableOpacity
-          style={[styles.button, styles.primaryButton]}
-          onPress={handleCreateList}
-          disabled={processingList}
-        >
-          {processingList ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Create New List</Text>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.signOutLink}
-          onPress={handleSignOut}
-        >
-          <Text style={styles.signOutLinkText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+    if (activeItems.length === 0) {
+      Alert.alert('Nothing to share', 'Your list has no remaining items.');
+      return;
+    }
+
+    const grouped = {};
+    activeItems.forEach((item) => {
+      const category = item.category || 'Other';
+      if (!grouped[category]) grouped[category] = [];
+      grouped[category].push(item.name);
+    });
+
+    const orderedCategories = CATEGORIES.filter((c) => grouped[c]);
+    Object.keys(grouped).forEach((c) => {
+      if (!CATEGORIES.includes(c)) orderedCategories.push(c);
+    });
+
+    let message = `${listName}\n\n`;
+    orderedCategories.forEach((category) => {
+      message += `${category}:\n`;
+      grouped[category].forEach((name) => {
+        message += `• ${name}\n`;
+      });
+      message += '\n';
+    });
+
+    try {
+      await Share.share({ message: message.trim() });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to share list');
+    }
+  };
+
+  const handleSearchSelectSuggestion = (suggestion) => {
+    setSearchText(suggestion.name);
+    setSearchCategory(suggestion.category);
+  };
+
+  const handleAddFromSearch = async () => {
+    const trimmedName = searchText.trim();
+
+    if (!trimmedName) {
+      Alert.alert('Error', 'Please enter an item name');
+      return;
+    }
+
+    if (!searchCategory) {
+      Alert.alert('Error', 'Please select a category');
+      return;
+    }
+
+    // Check for duplicates
+    if (isDuplicate(trimmedName, items)) {
+      const duplicate = findDuplicate(trimmedName, items);
+
+      // If crossed off, uncross it
+      if (duplicate && duplicate.crossedOff) {
+        try {
+          await updateDoc(doc(db, 'lists', listId, 'items', duplicate.id), {
+            crossedOff: false,
+          });
+          setSearchText('');
+          setSearchCategory('');
+        } catch (error) {
+          console.error('Error uncrossing item:', error);
+          Alert.alert('Error', 'Failed to re-add item');
+        }
+        return;
+      }
+
+      const msg = `"${trimmedName}" was not added since it already exists in the list.`;
+      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Duplicate Item', msg);
+      return;
+    }
+
+    setAddingFromSearch(true);
+    try {
+      await addDoc(collection(db, 'lists', listId, 'items'), {
+        name: trimmedName,
+        nameLower: trimmedName.toLowerCase(),
+        category: searchCategory,
+        crossedOff: false,
+        addedBy: user.uid,
+        createdAt: serverTimestamp(),
+      });
+      setSearchText('');
+      setSearchCategory('');
+    } catch (error) {
+      console.error('Error adding item:', error);
+      Alert.alert('Error', 'Failed to add item');
+    } finally {
+      setAddingFromSearch(false);
+    }
+  };
 
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#29AB87" />
       </View>
     );
   }
@@ -253,7 +324,12 @@ const GroceryListScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Grocery List</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>‹</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.headerNameButton} onPress={handleOpenNameModal}>
+          <Text style={styles.headerTitle}>{listName}</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.menuButton}
           onPress={() => setMenuVisible(true)}
@@ -262,12 +338,46 @@ const GroceryListScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <AutocompleteInput
+          value={searchText}
+          onChangeText={(text) => {
+            setSearchText(text);
+            if (!text.trim()) {
+              setSearchCategory('');
+            }
+          }}
+          onSelectSuggestion={handleSearchSelectSuggestion}
+          placeholder="Start typing to search"
+        />
+        {searchText.trim().length > 0 && (
+          <View style={styles.searchAddControls}>
+            <CategoryPicker
+              selectedCategory={searchCategory}
+              onSelectCategory={setSearchCategory}
+            />
+            <TouchableOpacity
+              style={[styles.searchAddButton, addingFromSearch && styles.searchAddButtonDisabled]}
+              onPress={handleAddFromSearch}
+              disabled={addingFromSearch}
+            >
+              {addingFromSearch ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.searchAddButtonText}>Add to List</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
       {/* List */}
       {items.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Your list is empty</Text>
           <Text style={styles.emptySubtext}>
-            Tap the + button to add items
+            Use the search bar above to add items
           </Text>
         </View>
       ) : (
@@ -279,6 +389,7 @@ const GroceryListScreen = ({ navigation }) => {
               item={item}
               onToggleCrossOff={handleToggleCrossOff}
               onDelete={handleDeleteItem}
+              onRename={handleRenameItem}
             />
           )}
           renderSectionHeader={({ section: { title } }) => (
@@ -290,13 +401,36 @@ const GroceryListScreen = ({ navigation }) => {
         />
       )}
 
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('AddItem', { listId, items })}
+      {/* Rename / Delete Modal */}
+      <Modal
+        visible={nameModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNameModalVisible(false)}
       >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setNameModalVisible(false)}
+        >
+          <TouchableOpacity style={styles.nameModalCard} activeOpacity={1}>
+            <Text style={styles.nameModalTitle}>List Name</Text>
+            <TextInput
+              style={styles.nameModalInput}
+              value={editingName}
+              onChangeText={setEditingName}
+              autoFocus
+              onSubmitEditing={handleSaveName}
+            />
+            <TouchableOpacity style={styles.nameModalSaveButton} onPress={handleSaveName}>
+              <Text style={styles.nameModalSaveText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.nameModalDeleteButton} onPress={handleDeleteList}>
+              <Text style={styles.nameModalDeleteText}>Delete List</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Menu Modal */}
       <Modal
@@ -311,6 +445,15 @@ const GroceryListScreen = ({ navigation }) => {
           onPress={() => setMenuVisible(false)}
         >
           <View style={styles.menuContainer}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                handleShareList();
+              }}
+            >
+              <Text style={styles.menuItemText}>Share List</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
@@ -354,18 +497,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#29AB87',
     paddingTop: 50,
     paddingBottom: 16,
     paddingHorizontal: 16,
   },
+  backButton: {
+    padding: 8,
+    width: 40,
+  },
+  backButtonText: {
+    fontSize: 32,
+    color: '#fff',
+    lineHeight: 32,
+  },
+  headerNameButton: {
+    flex: 1,
+    alignItems: 'center',
+  },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
   },
   menuButton: {
     padding: 8,
+    width: 40,
+    alignItems: 'flex-end',
   },
   menuIcon: {
     fontSize: 24,
@@ -397,7 +555,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#29AB87',
   },
   secondaryButton: {
     backgroundColor: '#fff',
@@ -436,7 +594,7 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   sectionHeader: {
-    backgroundColor: '#e8e8e8',
+    backgroundColor: '#d3d3d3',
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
@@ -445,27 +603,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#666',
     textTransform: 'uppercase',
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 32,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  fabIcon: {
-    fontSize: 32,
-    color: '#fff',
-    lineHeight: 32,
   },
   modalOverlay: {
     flex: 1,
@@ -496,6 +633,74 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     color: '#FF5252',
+  },
+  searchContainer: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    zIndex: 10,
+  },
+  searchAddControls: {
+    marginTop: 8,
+  },
+  searchAddButton: {
+    backgroundColor: '#29AB87',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  searchAddButtonDisabled: {
+    backgroundColor: '#85D4BC',
+  },
+  searchAddButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  nameModalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    width: '85%',
+  },
+  nameModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+  },
+  nameModalInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  nameModalSaveButton: {
+    backgroundColor: '#29AB87',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  nameModalSaveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  nameModalDeleteButton: {
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  nameModalDeleteText: {
+    color: '#FF5252',
+    fontSize: 16,
   },
 });
 

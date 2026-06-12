@@ -10,7 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import AutocompleteInput from '../components/AutocompleteInput';
@@ -45,6 +45,21 @@ const AddItemScreen = ({ navigation, route }) => {
     // Check for duplicates
     if (isDuplicate(trimmedName, items)) {
       const duplicate = findDuplicate(trimmedName, items);
+
+      // If the duplicate is crossed off, uncross it and go back
+      if (duplicate && duplicate.crossedOff) {
+        try {
+          await updateDoc(doc(db, 'lists', listId, 'items', duplicate.id), {
+            crossedOff: false,
+          });
+          navigation.goBack();
+        } catch (error) {
+          console.error('Error uncrossing item:', error);
+          Alert.alert('Error', 'Failed to re-add item');
+        }
+        return;
+      }
+
       Alert.alert(
         'Duplicate Item',
         `"${duplicate?.name || trimmedName}" is already on your list.`,
@@ -139,7 +154,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#29AB87',
     paddingTop: 50,
     paddingBottom: 16,
     paddingHorizontal: 16,
@@ -178,14 +193,14 @@ const styles = StyleSheet.create({
     height: 24,
   },
   addButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#29AB87',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 16,
   },
   addButtonDisabled: {
-    backgroundColor: '#A5D6A7',
+    backgroundColor: '#85D4BC',
   },
   addButtonText: {
     color: '#fff',

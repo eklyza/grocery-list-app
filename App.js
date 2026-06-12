@@ -6,9 +6,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import LoginScreen from './src/screens/LoginScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
+import HomeScreen from './src/screens/HomeScreen';
 import GroceryListScreen from './src/screens/GroceryListScreen';
 import AddItemScreen from './src/screens/AddItemScreen';
 import InviteScreen from './src/screens/InviteScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
 const Stack = createNativeStackNavigator();
@@ -17,11 +19,13 @@ const AuthStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Login" component={LoginScreen} />
     <Stack.Screen name="SignUp" component={SignUpScreen} />
+    <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
   </Stack.Navigator>
 );
 
 const AppStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="Home" component={HomeScreen} />
     <Stack.Screen name="GroceryList" component={GroceryListScreen} />
     <Stack.Screen name="AddItem" component={AddItemScreen} />
     <Stack.Screen name="Invite" component={InviteScreen} />
@@ -34,7 +38,7 @@ const Navigation = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#29AB87" />
       </View>
     );
   }

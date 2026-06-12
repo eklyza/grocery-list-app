@@ -58,7 +58,7 @@ const LoginScreen = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Grocery List</Text>
+        <Text style={styles.title}>Groceries</Text>
         <Text style={styles.subtitle}>Sign in to your account</Text>
 
         <View style={styles.form}>
@@ -83,6 +83,14 @@ const LoginScreen = ({ navigation }) => {
             secureTextEntry
             editable={!loading}
           />
+
+          <TouchableOpacity
+            style={styles.forgotPassword}
+            onPress={() => navigation.navigate('ForgotPassword')}
+            disabled={loading}
+          >
+            <Text style={styles.link}>Forgot Password?</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -124,7 +132,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#29AB87',
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -146,14 +154,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
   },
   button: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#29AB87',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 8,
   },
   buttonDisabled: {
-    backgroundColor: '#A5D6A7',
+    backgroundColor: '#85D4BC',
   },
   buttonText: {
     color: '#fff',
@@ -171,8 +179,11 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
   },
+  forgotPassword: {
+    alignSelf: 'flex-end',
+  },
   link: {
-    color: '#4CAF50',
+    color: '#29AB87',
     fontSize: 14,
     fontWeight: '600',
   },

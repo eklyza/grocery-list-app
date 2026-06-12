@@ -163,12 +163,12 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   selectedCategoryText: {
-    color: '#4CAF50',
+    color: '#29AB87',
     fontWeight: '600',
   },
   checkmark: {
     fontSize: 18,
-    color: '#4CAF50',
+    color: '#29AB87',
     fontWeight: '600',
   },
 });

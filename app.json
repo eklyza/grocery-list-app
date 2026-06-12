@@ -1,12 +1,13 @@
 {
   "expo": {
-    "name": "Grocery List",
+    "name": "Groceries",
     "slug": "grocery-list-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./icon.png",
     "splash": {
-      "backgroundColor": "#4CAF50"
+      "backgroundColor": "#29AB87"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -17,9 +18,21 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#4CAF50"
+        "foregroundImage": "./icon.png",
+        "backgroundColor": "#29AB87"
       },
       "package": "com.grocerylist.app"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ce6e4d25-7700-497b-8834-ce142d914d80"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ce6e4d25-7700-497b-8834-ce142d914d80"
     }
   }
 }
