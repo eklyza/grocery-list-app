@@ -40,6 +40,13 @@ const ItemRow = ({ item, onToggleCrossOff, onDelete, onRename }) => {
   };
 
   const handleDelete = () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Are you sure you want to delete "${item.name}"?`)) {
+        onDelete(item.id);
+      }
+      return;
+    }
+
     Alert.alert(
       'Delete Item',
       `Are you sure you want to delete "${item.name}"?`,
@@ -77,31 +84,50 @@ const ItemRow = ({ item, onToggleCrossOff, onDelete, onRename }) => {
     );
   };
 
+  const isWeb = Platform.OS === 'web';
+
+  const row = (
+    <TouchableOpacity
+      style={[styles.container, item.crossedOff && styles.crossedOff]}
+      onPress={handleToggle}
+      activeOpacity={0.7}
+    >
+      <View style={styles.checkbox}>
+        {item.crossedOff && <Text style={styles.checkmark}>✓</Text>}
+      </View>
+      <View style={styles.content}>
+        <TouchableOpacity onPress={handleOpenEdit}>
+          <Text style={[styles.name, item.crossedOff && styles.crossedOffText]}>
+            {item.name}
+          </Text>
+        </TouchableOpacity>
+        <Text style={styles.category}>{item.category}</Text>
+      </View>
+      {isWeb && (
+        <TouchableOpacity
+          style={styles.webDeleteButton}
+          onPress={handleDelete}
+          accessibilityLabel={`Delete ${item.name}`}
+        >
+          <Text style={styles.webDeleteText}>✕</Text>
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <>
-      <Swipeable
-        ref={swipeableRef}
-        renderRightActions={renderRightActions}
-        rightThreshold={40}
-      >
-        <TouchableOpacity
-          style={[styles.container, item.crossedOff && styles.crossedOff]}
-          onPress={handleToggle}
-          activeOpacity={0.7}
+      {isWeb ? (
+        row
+      ) : (
+        <Swipeable
+          ref={swipeableRef}
+          renderRightActions={renderRightActions}
+          rightThreshold={40}
         >
-          <View style={styles.checkbox}>
-            {item.crossedOff && <Text style={styles.checkmark}>✓</Text>}
-          </View>
-          <View style={styles.content}>
-            <TouchableOpacity onPress={handleOpenEdit}>
-              <Text style={[styles.name, item.crossedOff && styles.crossedOffText]}>
-                {item.name}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.category}>{item.category}</Text>
-          </View>
-        </TouchableOpacity>
-      </Swipeable>
+          {row}
+        </Swipeable>
+      )}
 
       <Modal
         visible={editModalVisible}
@@ -240,6 +266,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 14,
+  },
+  webDeleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginLeft: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  webDeleteText: {
+    color: '#FF5252',
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 18,
   },
 });
 
