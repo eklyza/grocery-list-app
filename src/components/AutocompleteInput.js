@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   TextInput,
@@ -14,9 +14,25 @@ const AutocompleteInput = ({
   onChangeText,
   onSelectSuggestion,
   placeholder = 'Enter item name',
+  completedItems = [],
 }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Build the pool of suggestions: the predefined catalog plus any completed
+  // items from this list that the catalog doesn't already include.
+  const suggestionPool = useMemo(() => {
+    const seen = new Set(GROCERY_ITEMS.map((item) => item.name.toLowerCase()));
+    const extras = [];
+    completedItems.forEach((item) => {
+      if (!item.name) return;
+      const key = item.name.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      extras.push({ name: item.name, category: item.category || 'Other' });
+    });
+    return [...GROCERY_ITEMS, ...extras];
+  }, [completedItems]);
 
   const filterSuggestions = useCallback((text) => {
     if (!text || text.length < 2) {
@@ -26,13 +42,13 @@ const AutocompleteInput = ({
     }
 
     const query = text.toLowerCase();
-    const filtered = GROCERY_ITEMS
+    const filtered = suggestionPool
       .filter((item) => item.name.toLowerCase().includes(query))
       .slice(0, 5);
 
     setSuggestions(filtered);
     setShowSuggestions(filtered.length > 0);
-  }, []);
+  }, [suggestionPool]);
 
   const handleChangeText = (text) => {
     onChangeText(text);

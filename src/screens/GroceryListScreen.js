@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -72,12 +72,19 @@ const GroceryListScreen = ({ navigation, route }) => {
     return unsubscribe;
   }, [listId]);
 
+  // Completed items for this list, reused for autocomplete suggestions and
+  // for the "Completed" section below.
+  const completedItems = useMemo(
+    () => items.filter((item) => item.crossedOff),
+    [items]
+  );
+
   const getSectionedItems = () => {
     // Group items by category
     const grouped = {};
 
     // First add crossed off items to their own section
-    const crossedOff = items.filter((item) => item.crossedOff);
+    const crossedOff = completedItems;
     const active = items.filter((item) => !item.crossedOff);
 
     // Group active items by category
@@ -107,11 +114,16 @@ const GroceryListScreen = ({ navigation, route }) => {
       }
     });
 
-    // Add crossed off section at the end
+    // Add crossed off section at the end, sorted alphabetically by name
+    // across the whole section (categories are not used here).
     if (crossedOff.length > 0) {
+      const sortedCrossedOff = [...crossedOff].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+
       sections.push({
         title: 'Completed',
-        data: crossedOff,
+        data: sortedCrossedOff,
       });
     }
 
@@ -350,6 +362,7 @@ const GroceryListScreen = ({ navigation, route }) => {
           }}
           onSelectSuggestion={handleSearchSelectSuggestion}
           placeholder="Start typing to search"
+          completedItems={completedItems}
         />
         {searchText.trim().length > 0 && (
           <View style={styles.searchAddControls}>

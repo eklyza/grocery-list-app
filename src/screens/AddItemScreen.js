@@ -20,6 +20,7 @@ import { isDuplicate, findDuplicate } from '../utils/duplicateCheck';
 const AddItemScreen = ({ navigation, route }) => {
   const { listId, items = [] } = route.params;
   const { user } = useAuth();
+  const completedItems = items.filter((item) => item.crossedOff);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(false);
@@ -116,6 +117,7 @@ const AddItemScreen = ({ navigation, route }) => {
             onChangeText={setName}
             onSelectSuggestion={handleSelectSuggestion}
             placeholder="Start typing to search..."
+            completedItems={completedItems}
           />
 
           <View style={styles.spacer} />
