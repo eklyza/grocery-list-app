@@ -15,7 +15,7 @@ const showAlert = (title, message) => {
     window.alert(`${title}\n\n${message}`);
   } else {
     const { Alert } = require('react-native');
-    showAlert(title, message);
+    Alert.alert(title, message);
   }
 };
 import { useAuth } from '../contexts/AuthContext';

@@ -6,6 +6,7 @@ import {
   Modal,
   FlatList,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import { CATEGORIES } from '../data/categories';
 
@@ -57,11 +58,11 @@ const CategoryPicker = ({ selectedCategory, onSelectCategory }) => {
       <Modal
         visible={modalVisible}
         transparent
-        animationType="slide"
+        animationType={Platform.OS === 'web' ? 'fade' : 'slide'}
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <View style={[styles.modalOverlay, Platform.OS === 'web' && styles.modalOverlayWeb]}>
+          <View style={[styles.modalContent, Platform.OS === 'web' && styles.modalContentWeb]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Category</Text>
               <TouchableOpacity
@@ -118,11 +119,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
+  modalOverlayWeb: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
   modalContent: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '70%',
+  },
+  modalContentWeb: {
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '70%',
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',

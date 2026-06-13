@@ -18,6 +18,7 @@ import {
   orderBy,
   onSnapshot,
   doc,
+  getDoc,
   updateDoc,
   deleteDoc,
   addDoc,
@@ -78,6 +79,20 @@ const GroceryListScreen = ({ navigation, route }) => {
     () => items.filter((item) => item.crossedOff),
     [items]
   );
+
+  // On a fresh load / refresh (e.g. deep link to /list/:listId) the name isn't
+  // passed via params, so fetch it from the list document.
+  useEffect(() => {
+    if (initialListName || !listId) return;
+
+    getDoc(doc(db, 'lists', listId))
+      .then((snap) => {
+        if (snap.exists() && snap.data().name) {
+          setListName(snap.data().name);
+        }
+      })
+      .catch((error) => console.error('Error fetching list name:', error));
+  }, [listId, initialListName]);
 
   const getSectionedItems = () => {
     // Group items by category
@@ -458,15 +473,17 @@ const GroceryListScreen = ({ navigation, route }) => {
           onPress={() => setMenuVisible(false)}
         >
           <View style={styles.menuContainer}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                handleShareList();
-              }}
-            >
-              <Text style={styles.menuItemText}>Share List</Text>
-            </TouchableOpacity>
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setMenuVisible(false);
+                  handleShareList();
+                }}
+              >
+                <Text style={styles.menuItemText}>Share List</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
@@ -511,7 +528,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#29AB87',
-    paddingTop: 50,
+    paddingTop: Platform.OS === 'web' ? 16 : 50,
     paddingBottom: 16,
     paddingHorizontal: 16,
   },

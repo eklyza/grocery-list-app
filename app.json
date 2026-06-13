@@ -9,6 +9,14 @@
     "splash": {
       "backgroundColor": "#29AB87"
     },
+    "web": {
+      "favicon": "./icon.png",
+      "bundler": "metro",
+      "name": "Groceries",
+      "shortName": "Groceries",
+      "themeColor": "#29AB87",
+      "backgroundColor": "#29AB87"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
